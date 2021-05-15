@@ -7,6 +7,7 @@ const userJoiSchema = Joi.object({
     name: Joi.string().min(2).max(255).required(),
     profileImage: Joi.string().uri(),
     socialId: Joi.string().required().min(1),
+    socialToken: Joi.string().required().min(10),
     socialMethod: Joi.string().required().min(1),
     email: Joi.string().email().required(),
     countryCode: Joi.string().max(6),

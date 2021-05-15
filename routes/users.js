@@ -1,14 +1,15 @@
 const _ = require('lodash');
+const { OAuth2Client } = require('google-auth-library');
 const express = require('express');
 const apiDebugger = require('debug')('app:api');
 const { validateUser, User } = require('../models/user_schema');
 const router = express.Router();
+const config = require('config');
 const CustomErr = require('../common/error');
 const auth = require('../middlewares/async')
-const asyncExecutor = require('../middlewares/async')
 const admin = require('../middlewares/admin-checker')
 
-router.get('/:id', auth, asyncExecutor(async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
     const user = await User.findById(req.params.id).where({
         isDeleted: false
     });
@@ -17,9 +18,9 @@ router.get('/:id', auth, asyncExecutor(async (req, res) => {
     } else {
         res.status(CustomErr.statusCodeNotFound).send(new CustomErr(CustomErr.statusCodeNotFound, "User not found"));
     }
-}));
+});
 
-router.get('/me', auth, asyncExecutor(async (req, res) => {
+router.get('/me', auth, async (req, res) => {
     const user = await User.findById(req.user._id).where({
         isDeleted: false
     });
@@ -29,15 +30,28 @@ router.get('/me', auth, asyncExecutor(async (req, res) => {
         res.status(CustomErr.statusCodeNotFound).send(new CustomErr(CustomErr.statusCodeNotFound, "User not found"));
     }
 
-}));
+});
 
-router.post('/', asyncExecutor(async (req, res) => {
+router.post('/', async (req, res) => {
     const userRequest = req.body;
     const error = validateUser(req.body, false);
     if (error) {
         return res.status(CustomErr.statusCodeBadRequest).send(new CustomErr(CustomErr.statusCodeBadRequest, error.message));
     }
+    const CLIENT_ID = config.get('client_id');
+    const client = new OAuth2Client(CLIENT_ID);
+
+    const ticket = await client.verifyIdToken({
+        idToken: userRequest.socialToken,
+        audience: CLIENT_ID,
+        //[CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3]
+    });
+    const payload = ticket.getPayload();
+    const authSocialId = payload['sub'];
+    let isNew = false;
     let result = await User.findOne().or([{ socialId: userRequest.socialId }, { email: userRequest.email }]);
+    if (userRequest.socialId != authSocialId)
+        return res.status(CustomErr.statusCodeBadRequest).send(new CustomErr(CustomErr.statusCodeBadRequest, "Invalid social id"));
     if (!result) {
         user = new User(_.pick(userRequest, ['name', 'email', 'isEmailVerified', 'profileImage', 'socialId', 'socialMethod', 'countryCode']));
         user.isEmailVerified = true;
@@ -50,15 +64,18 @@ router.post('/', asyncExecutor(async (req, res) => {
             }
         }
         result = await user.save();
+        isNew = true;
     }
     const token = result.generateAuthToken();
+    result = result.toJSON()
+    result = { ...result, isNew: isNew };
+    console.log(result);
     res.header('Authorization', token).send(result);
-
-}));
-
+});
 
 
-router.put('/update', auth, asyncExecutor(async (req, res) => {
+
+router.put('/update', auth, async (req, res) => {
     const userRequest = req.body;
     const error = validateUser(req.body, true);
     if (error) {
@@ -98,11 +115,11 @@ router.put('/update', auth, asyncExecutor(async (req, res) => {
     apiDebugger(existingUser);
     const result = await existingUser.save()
     res.send(result);
-}));
+});
 
 
 
-router.delete('/:id', [auth, admin], asyncExecutor(async (req, res) => {
+router.delete('/:id', [auth, admin], async (req, res) => {
     const userRequest = req.body;
     const error = validateUser(req.body, true);
     if (error) {
@@ -114,7 +131,7 @@ router.delete('/:id', [auth, admin], asyncExecutor(async (req, res) => {
         }
     });
     res.send(result);
-}));
+});
 
 
 exports.routes = router;
