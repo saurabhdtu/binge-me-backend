@@ -1,0 +1,4 @@
+{
+    "jwtSecretKey":"1234",
+    "database":"mongodb://localhost/binge-me-test"
+}

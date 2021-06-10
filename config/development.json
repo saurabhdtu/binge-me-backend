@@ -1,0 +1,5 @@
+{
+    "name": "Binge me-dev",
+    "client_id": "637394925023-nm4ohmhvqqqsei0tomr695f94oafuh18.apps.googleusercontent.com",
+    "database":"mongodb://localhost/binge-me-dev"
+}
